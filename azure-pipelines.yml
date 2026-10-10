@@ -1,0 +1,66 @@
+
+trigger:
+  branches:
+    include:
+      - main
+
+pr: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+resources:
+  repositories:
+    - repository: azureMirror
+      type: git
+      name: 'Kintsugi Tatto/Kintsugi Tatto'
+      ref: refs/heads/main
+
+steps:
+  - checkout: self
+    path: source
+    fetchDepth: 0
+    persistCredentials: false
+
+  - checkout: azureMirror
+    path: mirror
+    fetchDepth: 0
+    persistCredentials: false
+
+  - bash: |
+      set -euo pipefail
+
+      SOURCE="$(Pipeline.Workspace)/source"
+      TARGET="https://dev.azure.com/nexora841680423/Kintsugi%20Tatto/_git/Kintsugi%20Tatto"
+
+      cd "$SOURCE"
+
+      echo "Consultando Azure Repos..."
+
+      git -c "http.extraheader=AUTHORIZATION: bearer ${AZURE_TOKEN}" \
+        fetch "$TARGET" refs/heads/main
+
+      AZURE_SHA="$(git rev-parse FETCH_HEAD)"
+      GITHUB_SHA="$(git rev-parse HEAD)"
+
+      if [ "$AZURE_SHA" = "$GITHUB_SHA" ]; then
+        echo "Los repositorios ya están sincronizados."
+        exit 0
+      fi
+
+      if ! git merge-base --is-ancestor "$AZURE_SHA" "$GITHUB_SHA"; then
+        echo "ERROR: Los historiales han divergido."
+        echo "Se cancela la sincronización."
+        exit 1
+      fi
+
+      echo "Sincronizando main..."
+
+      git -c "http.extraheader=AUTHORIZATION: bearer ${AZURE_TOKEN}" \
+        push "$TARGET" "$GITHUB_SHA:refs/heads/main"
+
+      echo "Sincronización completada."
+
+    displayName: 'Sincronizar GitHub con Azure Repos'
+    env:
+      AZURE_TOKEN: $(System.AccessToken)
