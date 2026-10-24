@@ -1,0 +1,6 @@
+@Kintsugi_Tatto_HostAddress = http://localhost:5254
+
+GET {{Kintsugi_Tatto_HostAddress}}/api/v1/health
+Accept: application/json
+
+###
